@@ -227,6 +227,8 @@ else:
                     chart_data = chart_data.set_index('결제 시기 (YYMM)')
                 chart_data[tz_label] = values
                 
+                growth_str = f"▲ {growth_rate:.1f}%" if growth_rate > 0 else f"▼ {growth_rate:.1f}%" if growth_rate < 0 else "0.0%"
+                
                 # 예측 결과 수집 (스타일은 나중에 Pandas Styler로 일괄 적용)
                 predicted_results.append({
                     "시간대": tz_label, 
