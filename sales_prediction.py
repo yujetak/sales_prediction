@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import os
 
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
@@ -67,7 +68,7 @@ cols = df.columns.tolist()
 
 # 최종 사용할 feature 목록
 feature_cols = ['signgu_cd', 'mdclass_indutype_cd',
-                'tmzon_group', 'year', 'month_sin', 'month_cos']
+                'tmzon_group', 'year', 'month_sin', 'month_cos', 'sales_amt_log']
 
 
 #필요없는 feature 모두 제거

@@ -34,6 +34,30 @@ def load_assets():
   
     return model, encoder, scaler, industry_type_mapping, region_mapping
 
+@st.cache_data
+def load_dataset():
+    path = './dataset/card_sales_summary_small.csv'
+    if os.path.exists(path):
+        df = pd.read_csv(path)
+        df['sales_amt_log'] = np.log1p(df['sales_amt'])
+        df['year'] = df['std_ym'] // 100
+        df['month'] = df['std_ym'] % 100
+        df['month_sin'] = np.sin(2 * np.pi * df['month']/12.0)
+        df['month_cos'] = np.cos(2 * np.pi * df['month']/12.0)
+        
+        def compute_tmzone_group(tz_cd):
+            tm = int(tz_cd[-2:])
+            if tm > 8: return 'night'
+            elif tm > 5: return 'afternoon'
+            elif tm > 2: return 'morning'
+            else: return 'dawn'
+        
+        if 'tmzon_group' not in df.columns:
+            df['tmzon_group'] = df['tmzon_cd'].apply(compute_tmzone_group)
+            
+        return df
+    return None
+
 @st.cache_resource
 def get_sorted_lists(sources):
     sorted_sources = sorted(sources.items(), key=lambda item: item[1])
@@ -43,6 +67,7 @@ def get_sorted_lists(sources):
 
 with st.spinner("🚀 서비스 작업을 준비하는 중입니다..."):
     model, encoder, scaler, industry_type_mapping, region_mapping = load_assets()
+    df = load_dataset()
 
 if model is None:
     st.error("필수 파일(모델, 인코더, 매핑 파일 등)을 찾을 수 없습니다.")
@@ -93,35 +118,38 @@ else:
             target_cos = np.cos(2 * np.pi * target_month/12.0)
             
             TIME_STEPS = 12
+            feature_cols = ['signgu_cd', 'mdclass_indutype_cd', 'tmzon_group', 'year', 'month_sin', 'month_cos', 'sales_amt_log']
             oe_cols = ['signgu_cd', 'tmzon_cd', 'mdclass_indutype_cd', 'tmzon_group']
             ss_cols = ['year', 'signgu_cd', 'tmzon_cd', 'mdclass_indutype_cd', 'tmzon_group']
-            feature_cols = ['signgu_cd', 'mdclass_indutype_cd', 'tmzon_group', 'year', 'month_sin', 'month_cos']
             
             for idx, tz in enumerate(time_zone):
-                input_row = {
-                    'signgu_cd': int(region_code),
-                    'tmzon_cd': 'TZ01',
-                    'mdclass_indutype_cd': industry_code,
-                    'tmzon_group': tz,
-                    'year': target_year,
-                    'month_sin': target_sin,
-                    'month_cos': target_cos
-                }
+                # 2. 실제 과거 12개월 데이터 추출
+                cond = (df['signgu_cd'] == int(region_code)) & \
+                       (df['mdclass_indutype_cd'] == industry_code) & \
+                       (df['tmzon_group'] == tz)
                 
-                df_input = pd.DataFrame([input_row] * TIME_STEPS)
-                df_input[oe_cols] = encoder.transform(df_input[oe_cols])
-                df_input[ss_cols] = scaler.transform(df_input[ss_cols])
+                recent_data = df[cond].sort_values('std_ym').tail(TIME_STEPS)
                 
-                model_input = df_input[feature_cols].values.reshape(1, TIME_STEPS, len(feature_cols))
+                if len(recent_data) < TIME_STEPS:
+                    st.warning(f"'{tz}' 시간대는 과거 데이터가 부족하여 예측이 정확하지 않을 수 있습니다. (현재 {len(recent_data)}개월분)")
+                    # 데이터가 부족하면 부족한 만큼 평균값 등으로 채우거나 건너뛰는 로직이 필요할 수 있습니다.
+                    continue
+
+                # 인코딩 및 스케일링 준비를 위한 복사
+                input_df = recent_data.copy()
+                
+                # Transform (인코더와 스케일러 적용)
+                input_df[oe_cols] = encoder.transform(input_df[oe_cols])
+                input_df[ss_cols] = scaler.transform(input_df[ss_cols])
+                
+                # 모델 입력 형태 변환 (1, 12, 7)
+                model_input = input_df[feature_cols].values.reshape(1, TIME_STEPS, len(feature_cols))
                 
                 prediction = model.predict(model_input, verbose=0)
                 result_val = np.expm1(prediction)[0][0]
                 
                 total_sales_sum += result_val
-                predicted_results.append({
-                    "시간대": tz,
-                    "예상 매출액": f"{int(result_val):,} 원"
-                })
+                predicted_results.append({"시간대": tz, "예상 매출액": f"{int(result_val):,} 원"})
                 progress_bar.progress((idx + 1) / len(time_zone))
             
             progress_bar.empty()
