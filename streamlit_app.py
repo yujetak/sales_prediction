@@ -16,7 +16,7 @@ st.write("경기도의 행정구역, 매장의 영업시간대, 업종을 선택
 def load_assets():
   model_path = "./model/model.keras"
   encoder_path = "./model/oe.pkl"
-  scaler_path = "./mdoel/ss.pkl"
+  scaler_path = "./model/ss.pkl"
   
   # 데이터셋과 별도로 제공되는 업종코드, 지역코드를 매핑시킨 파일 불러오기
   industry_type_path = "./sources/industry_type_mapping.json"
