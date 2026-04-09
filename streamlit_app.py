@@ -9,13 +9,14 @@ import json
 st.set_page_config(page_icon="💰", page_title="카드매출 예측", layout="wide")
 
 st.title("지역, 시간대, 업종의 다음달 카드매출 예측 (BiLSTM)")
-st.write("경기도의 행정구역, 매장의 영업시간대, 업종을 선택하면 다음달의 카드 매출을 예측합니다")
+st.write("경기도의 행정구역, 매장의 영업시간대, 업종을 선택하면 다음달의 카드 매출을 예측합니다.")
 
 @st.cache_resource
 def load_assets():
-    model_path = "./model/model.keras"
-    encoder_path = "./model/oe.pkl"
-    scaler_path = "./model/ss.pkl"
+    # 경로 통일: ./models/ 로 설정 (저장 경로와 맞춤)
+    model_path = "./models/model.keras"
+    encoder_path = "./models/oe.pkl"
+    scaler_path = "./models/ss.pkl"
     industry_type_path = "./sources/industry_type_mapping.json"
     region_path = "./sources/region_mapping.json"
     
@@ -39,6 +40,7 @@ def load_dataset():
     path = './dataset/card_sales_summary_small.csv'
     if os.path.exists(path):
         df = pd.read_csv(path)
+        # 'TOT' 데이터 제거
         df = df[df['tmzon_cd'] != 'TOT'].copy()
         df['sales_amt_log'] = np.log1p(df['sales_amt'])
         df['year'] = df['std_ym'] // 100
@@ -59,51 +61,55 @@ def load_dataset():
         return df
     return None
 
-@st.cache_resource
-def get_sorted_lists(sources):
-    sorted_sources = sorted(sources.items(), key=lambda item: item[1])
-    names = [item[1] for item in sorted_sources]
-    codes = [item[0] for item in sorted_sources]
-    return names, codes
-
 with st.spinner("🚀 서비스 작업을 준비하는 중입니다..."):
     model, encoder, scaler, industry_type_mapping, region_mapping = load_assets()
     df = load_dataset()
 
-if model is None:
-    st.error("필수 파일(모델, 인코더, 매핑 파일 등)을 찾을 수 없습니다.")
+if model is None or df is None:
+    st.error("필수 파일(모델, 데이터셋 등)을 찾을 수 없습니다. 경로를 확인해주세요.")
 else:
-    known_regions = encoder.categories_[0].tolist()
-    known_industries = encoder.categories_[2].tolist()
-
-    _, industry_codes = get_sorted_lists(industry_type_mapping)
-    _, region_codes = get_sorted_lists(region_mapping)
-
+    # --- [핵심] 예측 가능한(12개월 데이터 보유) 조합만 미리 계산 ---
+    # 지역, 업종, 시간대별로 데이터 개수가 12개 이상인 조합만 필터링
+    counts = df.groupby(['signgu_cd', 'mdclass_indutype_cd', 'tmzon_group']).size().reset_index(name='count')
+    valid_combos = counts[counts['count'] >= 12].copy()
+    
     st.sidebar.header("조건 입력")
     
-    valid_region_codes = [c for c in region_codes if int(c) in known_regions]
+    # 1. 유효한 지역 코드만 추출 (문자열 변환하여 매핑과 맞춤)
+    valid_region_codes = sorted(valid_combos['signgu_cd'].unique().astype(str).tolist())
+    
     region_code = st.sidebar.selectbox(
         "📌 경기도 행정구역 선택", 
         options=valid_region_codes, 
-        format_func=lambda x: f"{region_mapping[x]} ({x})"
+        format_func=lambda x: f"{region_mapping.get(x, x)} ({x})"
     )
     
-    valid_industry_codes = [c for c in industry_codes if str(c) in known_industries]
+    # 2. 선택된 지역에서 12개월 데이터가 존재하는 업종만 필터링
+    valid_industry_codes = sorted(valid_combos[
+        valid_combos['signgu_cd'] == int(region_code)
+    ]['mdclass_indutype_cd'].unique().tolist())
+
     industry_code = st.sidebar.selectbox(
         "🏢 업종 선택", 
         options=valid_industry_codes,
-        format_func=lambda x: f"{industry_type_mapping[x]} ({x})"
+        format_func=lambda x: f"{industry_type_mapping.get(x, x)} ({x})"
     )
+
+    # 3. 선택된 지역+업종에서 데이터가 충분한 시간대만 필터링
+    valid_tz_options = valid_combos[
+        (valid_combos['signgu_cd'] == int(region_code)) & 
+        (valid_combos['mdclass_indutype_cd'] == industry_code)
+    ]['tmzon_group'].unique().tolist()
 
     time_zone = st.sidebar.multiselect(
         "🕰️ 영업 시간대 선택", 
-        ["dawn", "morning", "afternoon", "night"],
+        options=valid_tz_options,
         format_func=lambda x: {
             "dawn": "새벽 (00:00 ~ 06:00)", 
             "morning": "아침 (06:00 ~ 13:00)",
             "afternoon": "오후 (13:00 ~ 20:00)", 
             "night": "밤 (20:00 ~ 24:00)"
-        }[x]
+        }.get(x, x)
     )
     
     if st.button("매출 예측하기", use_container_width=True):
@@ -114,36 +120,26 @@ else:
             progress_bar = st.progress(0)
             total_sales_sum = 0
             
-            target_year, target_month = 2025, 7
-            target_sin = np.sin(2 * np.pi * target_month/12.0)
-            target_cos = np.cos(2 * np.pi * target_month/12.0)
-            
             TIME_STEPS = 12
             feature_cols = ['signgu_cd', 'mdclass_indutype_cd', 'tmzon_group', 'year', 'month_sin', 'month_cos', 'sales_amt_log']
             oe_cols = ['signgu_cd', 'tmzon_cd', 'mdclass_indutype_cd', 'tmzon_group']
             ss_cols = ['year', 'signgu_cd', 'tmzon_cd', 'mdclass_indutype_cd', 'tmzon_group']
             
             for idx, tz in enumerate(time_zone):
-                # 2. 실제 과거 12개월 데이터 추출
+                # 실제 과거 데이터 추출 (이미 상단에서 12개 이상임이 보장됨)
                 cond = (df['signgu_cd'] == int(region_code)) & \
                        (df['mdclass_indutype_cd'] == industry_code) & \
                        (df['tmzon_group'] == tz)
                 
                 recent_data = df[cond].sort_values('std_ym').tail(TIME_STEPS)
                 
-                if len(recent_data) < TIME_STEPS:
-                    st.warning(f"'{tz}' 시간대는 과거 데이터가 부족하여 예측이 정확하지 않을 수 있습니다. (현재 {len(recent_data)}개월분)")
-                    # 데이터가 부족하면 부족한 만큼 평균값 등으로 채우거나 건너뛰는 로직이 필요할 수 있습니다.
-                    continue
-
-                # 인코딩 및 스케일링 준비를 위한 복사
                 input_df = recent_data.copy()
                 
-                # Transform (인코더와 스케일러 적용)
+                # Transform
                 input_df[oe_cols] = encoder.transform(input_df[oe_cols])
                 input_df[ss_cols] = scaler.transform(input_df[ss_cols])
                 
-                # 모델 입력 형태 변환 (1, 12, 7)
+                # 모델 입력 형태 변환
                 model_input = input_df[feature_cols].values.reshape(1, TIME_STEPS, len(feature_cols))
                 
                 prediction = model.predict(model_input, verbose=0)
