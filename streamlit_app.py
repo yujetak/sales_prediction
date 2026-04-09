@@ -133,12 +133,12 @@ else:
 
     st.sidebar.divider()
 
-    TZ_ORDER = {"dawn": 0, "morning": 1, "afternoon": 2, "night": 3}
+    TZ_ORDER = {"morning": 0, "afternoon": 1, "night": 2, "dawn": 3}
     TZ_LABEL = {
-        "dawn": "새벽 (00~06시)",
         "morning": "아침 (06~13시)",
         "afternoon": "오후 (13~20시)",
-        "night": "밤 (20~24시)"
+        "night": "밤 (20~24시)",
+        "dawn": "새벽 (00~06시)"
     }
 
     valid_tz_options = sorted(
@@ -303,8 +303,8 @@ else:
                                           domainColor='black', tickColor='black',
                                           gridColor='#E2E2E2')),
                     color=alt.Color('영업 시간대:N', title='영업 시간대', 
-                                    scale=alt.Scale(domain=["새벽", "아침", "오후", "밤"], 
-                                                    range=["#9333ea", "#22c55e", "#f97316", "#2563eb"]),
+                                    scale=alt.Scale(domain=["아침 (06~13시)", "오후 (13~20시)", "밤 (20~24시)", "새벽 (00~06시)"], 
+                                                    range=["#22c55e", "#f97316", "#2563eb", "#9333ea"]),
                                     legend=alt.Legend(titleColor='black', labelColor='black')),
                     tooltip=['결제 시기 (YYMM)', '영업 시간대', '월간 총매출 합산액']
                 ).properties(height=450)
