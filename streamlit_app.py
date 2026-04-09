@@ -8,7 +8,7 @@ import json
 
 st.set_page_config(page_icon="💰", page_title="카드매출 예측", layout="wide")
 
-st.title("지역, 시간대, 업종의 다음달 카드매출 예측 (BiLSTM)")
+st.title("🔮 지역, 시간대, 업종의 다음달 카드매출 예측 (BiLSTM)")
 st.write("경기도의 행정구역, 매장의 영업시간대, 업종을 선택하면 다음달의 카드 매출을 예측합니다")
 
 @st.cache_resource
