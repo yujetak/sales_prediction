@@ -133,20 +133,26 @@ else:
 
     st.sidebar.divider()
 
-    valid_tz_options = valid_combos[
-        (valid_combos['signgu_cd'] == int(region_code)) & 
-        (valid_combos['mdclass_indutype_cd'] == industry_code)
-    ]['tmzon_group'].unique().tolist()
+    TZ_ORDER = {"dawn": 0, "morning": 1, "afternoon": 2, "night": 3}
+    TZ_LABEL = {
+        "dawn": "새벽 (00~06시)",
+        "morning": "아침 (06~13시)",
+        "afternoon": "오후 (13~20시)",
+        "night": "밤 (20~24시)"
+    }
+
+    valid_tz_options = sorted(
+        valid_combos[
+            (valid_combos['signgu_cd'] == int(region_code)) &
+            (valid_combos['mdclass_indutype_cd'] == industry_code)
+        ]['tmzon_group'].unique().tolist(),
+        key=lambda x: TZ_ORDER.get(x, 99)
+    )
 
     time_zone = st.sidebar.multiselect(
-        "🕰️ 영업 시간대 선택", 
+        "🕰️ 영업 시간대 선택",
         options=valid_tz_options,
-        format_func=lambda x: {
-            "dawn": "새벽 (00~06시)", 
-            "morning": "아침 (06~13시)",
-            "afternoon": "오후 (13~20시)", 
-            "night": "밤 (20~24시)"
-        }.get(x, x)
+        format_func=lambda x: TZ_LABEL.get(x, x)
     )
     
     st.sidebar.divider()
@@ -166,8 +172,7 @@ else:
             oe_cols = ['signgu_cd', 'tmzon_cd', 'mdclass_indutype_cd', 'tmzon_group']
             ss_cols = ['year', 'signgu_cd', 'tmzon_cd', 'mdclass_indutype_cd', 'tmzon_group']
             
-            TIME_ORDER = {"dawn": 0, "morning": 1, "afternoon": 2, "night": 3}
-            sorted_time_zones = sorted(time_zone, key=lambda x: TIME_ORDER.get(x, 99))
+            sorted_time_zones = sorted(time_zone, key=lambda x: TZ_ORDER.get(x, 99))
             
             for idx, tz in enumerate(sorted_time_zones):
                 cond = (df['signgu_cd'] == int(region_code)) & \
@@ -206,7 +211,7 @@ else:
                 total_last_sum += last_actual_sales
                 growth_rate = ((actual_sales - last_actual_sales) / last_actual_sales) * 100 if last_actual_sales > 0 else 0.0
                 
-                tz_label = {"dawn": "새벽", "morning": "아침", "afternoon": "오후", "night": "밤"}.get(tz, tz)
+                tz_label = TZ_LABEL.get(tz, tz)
                 
                 last_std_ym = recent_data.iloc[-1]['std_ym']
                 n_year = last_std_ym // 100
@@ -232,7 +237,7 @@ else:
                 # 예측 결과 수집 (스타일은 나중에 Pandas Styler로 일괄 적용)
                 predicted_results.append({
                     "시간대": tz_label, 
-                    "상권 월간 예상 매출": format_korean_currency(actual_sales),
+                    "다음 달 예상 매출액": format_korean_currency(actual_sales),
                     "성장률": growth_str
                 })
                 progress_bar.progress((idx + 1) / len(sorted_time_zones))
@@ -258,7 +263,7 @@ else:
             
             def apply_custom_style(styler):
                 # 시간대별 감성 컬러 (새벽:보라, 아침:초록, 오후:주황, 밤:파랑)
-                tz_colors = {"새벽": "#9333ea", "아침": "#22c55e", "오후": "#f97316", "밤": "#2563eb"}
+                tz_colors = {"새벽 (00~06시)": "#9333ea", "아침 (06~13시)": "#22c55e", "오후 (13~20시)": "#f97316", "밤 (20~24시)": "#2563eb"}
                 styler.map(lambda v: f"color: {tz_colors.get(v, 'black')}; font-weight: bold;", subset=['시간대'])
                 
                 styler.map(lambda v: f"color: {'#ef4444' if '▲' in str(v) else '#3b82f6' if '▼' in str(v) else '#6b7280'}; font-weight: bold;", subset=['성장률'])
