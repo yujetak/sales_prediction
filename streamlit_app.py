@@ -39,7 +39,6 @@ def load_dataset():
     path = './dataset/card_sales_summary_small.csv'
     if os.path.exists(path):
         df = pd.read_csv(path)
-
         df = df[df['tmzon_cd'] != 'TOT'].copy()
         df['sales_amt_log'] = np.log1p(df['sales_amt'])
         df['year'] = df['std_ym'] // 100
@@ -60,25 +59,26 @@ def load_dataset():
         return df
     return None
 
+def format_korean_currency(amount):
+    amount = int(amount)
+    if amount >= 100000000:
+        billion = amount // 100000000
+        ten_thousand = (amount % 100000000) // 10000
+        if ten_thousand > 0:
+            return f"{billion}억 {ten_thousand:,}만 원"
+        return f"{billion}억 원"
+    elif amount >= 10000:
+        ten_thousand = amount // 10000
+        return f"{ten_thousand:,}만 원"
+    else:
+        return f"{amount:,} 원"
+
 with st.spinner("🚀 서비스 작업을 준비하는 중입니다..."):
     model, encoder, scaler, industry_type_mapping, region_mapping = load_assets()
     df = load_dataset()
 
-def format_korean_currency(amount):
-    if amount >= 100000000: 
-        billion = int(amount // 100000000)
-        ten_thousand = int((amount % 100000000) // 10000)
-        if ten_thousand > 0:
-            return f"{billion}억 {ten_thousand:,}만 원"
-        return f"{billion}억 원"
-    elif amount >= 10000: 
-        ten_thousand = int(amount // 10000)
-        return f"{ten_thousand:,}만 원"
-    else: 
-        return f"{int(amount):,} 원"
-
 if model is None or df is None:
-    st.error("필수 파일(모델, 데이터셋 등)을 찾을 수 없습니다. 경로를 확인해주세요.")
+    st.error("필수 파일들을 찾을 수 없습니다. 경로를 확인해주세요.")
 else:
     counts = df.groupby(['signgu_cd', 'mdclass_indutype_cd', 'tmzon_group']).size().reset_index(name='count')
     valid_combos = counts[counts['count'] >= 12].copy()
@@ -138,10 +138,8 @@ else:
                        (df['tmzon_group'] == tz)
                 
                 recent_data = df[cond].sort_values('std_ym').tail(TIME_STEPS)
-                
                 input_df = recent_data.copy()
                 
-                # Transform
                 input_df[oe_cols] = encoder.transform(input_df[oe_cols])
                 input_df[ss_cols] = scaler.transform(input_df[ss_cols])
                 
@@ -153,19 +151,15 @@ else:
                 actual_sales = result_val * 10000 
                 total_sales_sum += actual_sales
                 
-                formatted_sales = format_korean_currency(actual_sales)
-                
                 predicted_results.append({
                     "시간대": tz, 
-                    "예상 매출액": formatted_sales
+                    "예상 매출액": format_korean_currency(actual_sales)
                 })
                 progress_bar.progress((idx + 1) / len(time_zone))
             
             progress_bar.empty()
             st.divider()
             
-            formatted_total = format_korean_currency(total_sales_sum)
-            st.metric(label="🎶 총 예상 매출액", value=formatted_total)
-            
+            st.metric(label="🎶 총 예상 매출액", value=format_korean_currency(total_sales_sum))
             st.subheader("🎯 시간대별 상세 결과")
             st.table(pd.DataFrame(predicted_results))
