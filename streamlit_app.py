@@ -56,12 +56,12 @@ else:
   st.sidebar.header("조건 입력")
   
   #시군구
-  regoin_code = st.sidebar.selectbox("📌 경기도 행정구역 선택", options=industry_codes, 
-                                     format_func=lambda x: f"{industry_type_mapping[x]} ({x})")
+  regoin_code = st.sidebar.selectbox("📌 경기도 행정구역 선택", options=region_codes, 
+                                     format_func=lambda x: f"{region_mapping[x]} ({x})")
   
   #업종
-  industry_code = st.sidebar.selectbox("🏢 업종 선택", options=region_codes,
-                                       format_func=lambda x: f"{region_mapping[x]} ({x})")
+  industry_code = st.sidebar.selectbox("🏢 업종 선택", options=industry_codes,
+                                       format_func=lambda x: f"{industry_type_mapping[x]} ({x})")
   #시간
   time_zone = st.multiselect("🕰️ 영업 시간대 선택", ["dawn", "morning", "afternoon", "night"],
                              format_func=lambda x: {"dawn": "새벽 (00:00 ~ 06:00)", "morning": "아침 (06:00 ~ 13:00)",\
@@ -113,11 +113,11 @@ else:
       })
       
       progress_bar.progress((idx + 1) / len(time_zone))
-  
-  progress_bar.empty()
-  st.divider()
-  
-  st.metric(label="🪎 예상 매출액", value=f"{int(total_sales_sum):,} 원")
-  
-  st.subheader("🎯 시간대별 상세 결과")
-  st.table(pd.DataFrame(predicted_results))
+    
+    progress_bar.empty()
+    st.divider()
+    
+    st.metric(label="🪎 예상 매출액", value=f"{int(total_sales_sum):,} 원")
+    
+    st.subheader("🎯 시간대별 상세 결과")
+    st.table(pd.DataFrame(predicted_results))
