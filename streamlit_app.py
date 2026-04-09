@@ -39,6 +39,7 @@ def load_dataset():
     path = './dataset/card_sales_summary_small.csv'
     if os.path.exists(path):
         df = pd.read_csv(path)
+        df = df[df['tmzon_cd'] != 'TOT'].copy()
         df['sales_amt_log'] = np.log1p(df['sales_amt'])
         df['year'] = df['std_ym'] // 100
         df['month'] = df['std_ym'] % 100
