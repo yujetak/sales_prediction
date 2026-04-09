@@ -56,7 +56,7 @@ else:
   st.sidebar.header("조건 입력")
   
   #시군구
-  regoin_code = st.sidebar.selectbox("📌 경기도 행정구역 선택", options=region_codes, 
+  region_code = st.sidebar.selectbox("📌 경기도 행정구역 선택", options=region_codes, 
                                      format_func=lambda x: f"{region_mapping[x]} ({x})")
   
   #업종
@@ -86,9 +86,9 @@ else:
     # 시간대마다 학습
     for idx, tz in enumerate(time_zone):
       input_row = {
-          'signgu_cd': regoin_code,
+          'signgu_cd': int(region_code),
           'tmzon_cd': 'TZ01',
-          'mdclass_indutype_cd': industry_code,
+          'mdclass_indutype_cd': int(industry_code),
           'tmzon_group': tz,
           'year': target_year,
           'month_sin': target_sin,
