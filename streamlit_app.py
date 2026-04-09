@@ -64,6 +64,19 @@ with st.spinner("🚀 서비스 작업을 준비하는 중입니다..."):
     model, encoder, scaler, industry_type_mapping, region_mapping = load_assets()
     df = load_dataset()
 
+def format_korean_currency(amount):
+    if amount >= 100000000: 
+        billion = int(amount // 100000000)
+        ten_thousand = int((amount % 100000000) // 10000)
+        if ten_thousand > 0:
+            return f"{billion}억 {ten_thousand:,}만 원"
+        return f"{billion}억 원"
+    elif amount >= 10000: 
+        ten_thousand = int(amount // 10000)
+        return f"{ten_thousand:,}만 원"
+    else: 
+        return f"{int(amount):,} 원"
+
 if model is None or df is None:
     st.error("필수 파일(모델, 데이터셋 등)을 찾을 수 없습니다. 경로를 확인해주세요.")
 else:
@@ -137,12 +150,22 @@ else:
                 prediction = model.predict(model_input, verbose=0)
                 result_val = np.expm1(prediction)[0][0]
                 
-                total_sales_sum += result_val
-                predicted_results.append({"시간대": tz, "예상 매출액": f"{int(result_val):,} 원"})
+                actual_sales = result_val * 10000 
+                total_sales_sum += actual_sales
+                
+                formatted_sales = format_korean_currency(actual_sales)
+                
+                predicted_results.append({
+                    "시간대": tz, 
+                    "예상 매출액": formatted_sales
+                })
                 progress_bar.progress((idx + 1) / len(time_zone))
             
             progress_bar.empty()
             st.divider()
-            st.metric(label="🎶 총 예상 매출액", value=f"{int(total_sales_sum):,} 원")
+            
+            formatted_total = format_korean_currency(total_sales_sum)
+            st.metric(label="🎶 총 예상 매출액", value=formatted_total)
+            
             st.subheader("🎯 시간대별 상세 결과")
             st.table(pd.DataFrame(predicted_results))
