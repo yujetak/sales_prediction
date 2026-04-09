@@ -88,7 +88,7 @@ else:
       input_row = {
           'signgu_cd': int(region_code),
           'tmzon_cd': 'TZ01',
-          'mdclass_indutype_cd': int(industry_code),
+          'mdclass_indutype_cd': industry_code,
           'tmzon_group': tz,
           'year': target_year,
           'month_sin': target_sin,
