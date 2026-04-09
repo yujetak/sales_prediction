@@ -63,7 +63,7 @@ else:
   industry_code = st.sidebar.selectbox("🏢 업종 선택", options=industry_codes,
                                        format_func=lambda x: f"{industry_type_mapping[x]} ({x})")
   #시간
-  time_zone = st.multiselect("🕰️ 영업 시간대 선택", ["dawn", "morning", "afternoon", "night"],
+  time_zone = st.sidebar.multiselect("🕰️ 영업 시간대 선택", ["dawn", "morning", "afternoon", "night"],
                              format_func=lambda x: {"dawn": "새벽 (00:00 ~ 06:00)", "morning": "아침 (06:00 ~ 13:00)",\
                                "afternoon": "오후 (13:00 ~ 20:00)", "night": "밤 (20:00 ~ 24:00)"}[x])
   
